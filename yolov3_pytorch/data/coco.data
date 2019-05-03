@@ -1,0 +1,6 @@
+classes=80
+train=/content/yolov3-master/coco/trainvalno5k.txt
+valid=/content/yolov3-master/coco/5k.txt
+names=data/coco.names
+backup=backup/
+eval=coco
