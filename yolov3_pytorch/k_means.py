@@ -5,17 +5,15 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 current_palette = list(sns.xkcd_rgb.values())
 
+
+########################
+## 描述：计算一个Ground Truth bounding box到所有聚类中心的距离(IOU)
+## box:一个Ground Truth bounding box，包含该box的宽和高
+## cluster:聚类中心(ndarray),k个聚类中心给成的列表
+########################
 def iou(box, clusters):
-    """
-    Calculates the Intersection over Union (IoU) between a box and k clusters.
-    param:
-        box: tuple or array, shifted to the origin (i. e. width and height)
-        clusters: numpy array of shape (k, 2) where k is the number of clusters
-    return:
-        numpy array of shape (k, 0) where k is the number of clusters
-    """
-    x = np.minimum(clusters[:, 0], box[0])
-    y = np.minimum(clusters[:, 1], box[1])
+    x = np.minimum(clusters[:, 0], box[0]) # 将聚类中心的宽与box的宽比较，取得宽的最小值
+    y = np.minimum(clusters[:, 1], box[1]) # 将聚类中心的高与box的高比较，取得宽的最小值
     if np.count_nonzero(x == 0) > 0 or np.count_nonzero(y == 0) > 0:
         raise ValueError("Box has no area")
 
@@ -28,36 +26,41 @@ def iou(box, clusters):
     return iou_
 
 
-
+########################
+## 描述： 计算kmeans聚类中心
+## boxes:所有Ground Truth组成的ndarray
+## k:    k个聚类中心
+## dist：簇的中心的计算方法
+## seed：随机数种子
+########################
 def kmeans(boxes, k, dist=np.median,seed=1):
-    """
-    Calculates k-means clustering with the Intersection over Union (IoU) metric.
-    :param boxes: numpy array of shape (r, 2), where r is the number of rows
-    :param k: number of clusters
-    :param dist: distance function
-    :return: numpy array of shape (k, 2)
-    """
-    rows = boxes.shape[0]
-    distances     = np.empty((rows, k)) ## N row x N cluster
+    rows = boxes.shape[0]  # Ground Truth的数量
+    distances     = np.empty((rows, k)) ## N row x k cluster
     last_clusters = np.zeros((rows,))
 
     np.random.seed(seed)
-
+    
+    # a1 = np.random.choice(a=5, size=3, replace=False, p=None)
+    # 参数意思分别 是从a 中以概率P，随机选择size个, p没有指定的时候相当于是一致的分布
+    # replacement 代表的意思是抽样之后还放不放回去，False不放回抽样，True放回抽样
+    
     # initialize the cluster centers to be k items
-    clusters = boxes[np.random.choice(rows, k, replace=False)]
+    clusters = boxes[np.random.choice(rows, k, replace=False)] # 从Ground Truth(boxes)中随机取出k个作为聚类中心的初值
 
     while True:
         # Step 1: allocate each item to the closest cluster centers
-        for icluster in range(k): # I made change to lars76's code here to make the code faster
-            distances[:,icluster] = 1 - iou(clusters[icluster], boxes)
+        for icluster in range(k): # for循环比较耗时，对k进行迭代循环，减少迭代次数，减少耗时
+            distances[:,icluster] = 1 - iou(clusters[icluster], boxes) # 循环计算每个cluster到所有Ground Truth Bounding box的IOU
 
-        nearest_clusters = np.argmin(distances, axis=1)
+        nearest_clusters = np.argmin(distances, axis=1) # 在维度1上对distance计算最小值(最近)
 
         if (last_clusters == nearest_clusters).all():
             break
 
         # Step 2: calculate the cluster centers as mean (or median) of all the cases in the clusters.
         for cluster in range(k):
+            # boxes[nearest_clusters == cluster]找出每个聚类对应的Ground Truth bounding box
+            # 计算每个簇中Ground Truth bounding box的均值，作为新的簇
             clusters[cluster] = dist(boxes[nearest_clusters == cluster], axis=0)
         last_clusters = nearest_clusters
 
